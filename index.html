@@ -5,6 +5,30 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#9fd3ff">
 <title>חתולת הממתקים</title>
+<meta name="description" content="עזרו למילקשייק, החתולה הלבנה עם הפפיון הסגול, לאסוף ממתקים ולהתחמק מחתולי הרחוב! משחק ריצה תלת-ממדי חינמי, ישר בדפדפן – בלי הורדות.">
+<!-- link previews (WhatsApp, Facebook, Telegram, X...) -->
+<meta property="og:type" content="website">
+<meta property="og:locale" content="he_IL">
+<meta property="og:site_name" content="חתולת הממתקים">
+<meta property="og:title" content="חתולת הממתקים 🍭 משחק ריצה מתוק">
+<meta property="og:description" content="עזרו למילקשייק, החתולה הלבנה עם הפפיון הסגול, לאסוף ממתקים ולהתחמק מחתולי הרחוב! משחק ריצה תלת-ממדי חינמי, ישר בדפדפן – בלי הורדות.">
+<meta property="og:url" content="https://matanbe20.github.io/candy-cat-run/">
+<meta property="og:image" content="https://matanbe20.github.io/candy-cat-run/og-image.jpg">
+<meta property="og:image:secure_url" content="https://matanbe20.github.io/candy-cat-run/og-image.jpg">
+<meta property="og:image:type" content="image/jpeg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="מילקשייק, חתולה לבנה עם פפיון סגול, על רחוב מצויר ומאחוריה הרים של שוקולד וממתקים">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="חתולת הממתקים 🍭 משחק ריצה מתוק">
+<meta name="twitter:description" content="עזרו למילקשייק, החתולה הלבנה עם הפפיון הסגול, לאסוף ממתקים ולהתחמק מחתולי הרחוב! משחק ריצה תלת-ממדי חינמי, ישר בדפדפן – בלי הורדות.">
+<meta name="twitter:image" content="https://matanbe20.github.io/candy-cat-run/og-image.jpg">
+<meta name="twitter:image:alt" content="מילקשייק, חתולה לבנה עם פפיון סגול, על רחוב מצויר ומאחוריה הרים של שוקולד וממתקים">
+<!-- icons -->
+<link rel="icon" href="favicon.ico" sizes="16x16 32x32 48x48">
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-title" content="חתולת הממתקים">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Rubik:wght@500;700;800;900&display=swap" rel="stylesheet">
@@ -119,6 +143,25 @@
   }
   .title .accent { color: var(--yellow); display: inline-block; transform: rotate(3deg) translateY(4px); }
   @keyframes wobble { 50% { transform: rotate(-2deg) scale(1.03); } }
+  /* "Hi, I'm Milkshake!" speech bubble that follows the heroine's head on the start screen */
+  .name-bubble {
+    position: absolute; left: -999px; top: 0; z-index: 1; pointer-events: none;
+    transform: translate(-50%, -100%); animation: bubble-in .5s cubic-bezier(.3, 1.6, .5, 1) .3s both;
+  }
+  .name-bubble span {
+    position: relative; display: block; white-space: nowrap;
+    font-weight: 800; font-size: clamp(19px, 2.9vw, 28px); color: var(--ink); background: #fff;
+    border: 4px solid var(--ink); border-radius: 22px 18px 24px 16px; box-shadow: 4px 5px 0 var(--ink);
+    padding: 4px 16px 6px; transform: rotate(-4deg); animation: bob 2.4s ease-in-out infinite;
+  }
+  .name-bubble b { font-weight: 900; color: var(--pink); text-shadow: 1px 1px 0 var(--ink); }
+  .name-bubble span::after {          /* the speech tail, pointing down at her */
+    content: ''; position: absolute; left: 50%; bottom: -17px; width: 22px; height: 18px; margin-left: -6px;
+    background: #fff; border: 4px solid var(--ink); border-top: none; border-left: none;
+    transform: skewX(-28deg) rotate(8deg); border-radius: 0 0 6px 0;
+  }
+  @keyframes bubble-in { from { opacity: 0; transform: translate(-50%, -60%) scale(.3); } }
+  @keyframes bob { 50% { transform: rotate(-2deg) translateY(-5px); } }
   .tagline {
     margin-top: 18px; font-weight: 800; font-size: clamp(15px, 2.6vw, 20px); text-align: center;
     background: #fff; border: 3px solid var(--ink); border-radius: 14px; box-shadow: 3px 4px 0 var(--ink);
@@ -255,10 +298,11 @@
 <button class="tap-gate" id="tapGate" type="button" aria-label="לחצו כדי להתחיל"><span>לחצו כדי להתחיל</span></button>
 
 <div class="screen start show" id="startScreen">
+ <div class="name-bubble" id="nameBubble" aria-hidden="true"><span>היי, אני <b>מילקשייק</b>!</span></div>
  <div class="start-col">
   <div class="start-top">
     <h1 class="title">חתולת<br><span class="accent">הממתקים</span></h1>
-    <div class="tagline">רוצי ברחוב, אספי ממתקים והתחמקי מחתולי הרחוב!</div>
+    <div class="tagline">עזרו למילקשייק לאסוף ממתקים ולהתחמק מחתולי הרחוב!</div>
   </div>
   <div class="start-bottom">
     <button class="btn-big" id="startBtn" type="button">יאללה, רצים!</button>
@@ -2806,10 +2850,14 @@ function animateHeroine(dt) {
     p.headRoll += Math.sin(t * 3) * 0.15; p.sy *= 0.94; p.earL = p.earR = -0.6;
   }
 
-  if (state === 'start' || state === 'over') {   // "talk" along with the recorded voice
-    const lv = AUDIO.voiceLevel();
-    p.hopY += lv * 0.1; p.sy += lv * 0.12; p.headPitch -= lv * 0.3; p.headRoll += lv * 0.15 * Math.sin(t * 9);
-    p.earL += lv * 0.5; p.earR += lv * 0.5;
+  // "talk" along with the recorded voice: a smoothed loudness envelope drives a gentle nod
+  // (the raw level jumps every frame, which made her bounce and shake)
+  const lv = (state === 'start' || state === 'over') ? AUDIO.voiceLevel() : 0;
+  HA.talk = lerp(HA.talk || 0, lv, 1 - Math.exp(-dt * (lv > (HA.talk || 0) ? 7 : 3.5)));
+  if (HA.talk > 0.001) {
+    const k = HA.talk;
+    p.headPitch -= k * 0.14; p.headRoll += k * 0.06 * Math.sin(t * 3.2);
+    p.sy += k * 0.025; p.earL += k * 0.3; p.earR += k * 0.3;
   }
   const footfall = Math.sin(HA.phase * 13) >= 0;   // paw steps follow the run cycle
   if (footfall !== HA.footfall && state === 'playing' && P.grounded && P.slideT <= 0) AUDIO.play('step', { pan: P.x / 3.5 });
@@ -3057,6 +3105,15 @@ function tapHeroine(e) {
   ndc.set(e.clientX / window.innerWidth * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1);
   raycaster.setFromCamera(ndc, camera);
   if (raycaster.intersectObject(heroine.root, true).length && !AUDIO.voicePlaying) AUDIO.playVoice('intro');
+}
+
+// "היי, אני מילקשייק!" bubble: project a point above her head to the screen
+const nameBubble = $('nameBubble'), bubbleAnchor = new THREE.Vector3();
+function placeNameBubble() {
+  if (state !== 'start') return;
+  heroine.head.getWorldPosition(bubbleAnchor).add(tmpV.set(0, 0.62, 0)).project(camera);
+  nameBubble.style.left = ((bubbleAnchor.x + 1) / 2 * window.innerWidth).toFixed(1) + 'px';
+  nameBubble.style.top = ((1 - bubbleAnchor.y) / 2 * window.innerHeight).toFixed(1) + 'px';
 }
 
 /* ---------- speed lines overlay ---------- */
@@ -3747,6 +3804,7 @@ function update(dt) {
   animateHeroine(dt);
   updateFx(dt);
   updateCamera(dt);
+  placeNameBubble();
   for (const c of clouds) { c.position.x += c.userData.speed * dt; if (c.position.x > 60) c.position.x = -60; }
   sky.position.copy(camera.position);
   drawSpeedLines(dt);
@@ -3780,7 +3838,7 @@ renderHearts();
 tick();
 // console handle for tuning / debugging, e.g. candyCat.GAME.speedMax = 30
 window.candyCat = {
-  GAME, STYLE, P, obstacles, candies, powers, act, renderer, scene, AUDIO, TEX,
+  GAME, STYLE, P, obstacles, candies, powers, act, renderer, scene, camera, AUDIO, TEX,
   get state() { return state; }, get dist() { return dist; }, get score() { return score; }, get speed() { return curSpeed; },
   set manual(v) { DEBUG.manual = v; },
   step(dt = 1 / 60, draw = true) { clockT += dt; update(dt); if (draw) renderer.render(scene, camera); },   // manual frame stepping (tests, background tabs)
