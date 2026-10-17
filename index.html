@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#9fd3ff">
-<title>חתולת הממתקים · Candy Cat Run</title>
+<title>חתולת הממתקים</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Rubik:wght@500;700;800;900&display=swap" rel="stylesheet">
@@ -263,8 +263,8 @@
   <div class="start-bottom">
     <button class="btn-big" id="startBtn" type="button">יאללה, רצים!</button>
     <div class="card tilt controls">
-      <div class="row"><kbd>←</kbd><kbd>→</kbd> או <kbd>A</kbd><kbd>D</kbd> החלפת מסלול</div>
-      <div class="row"><kbd>↑</kbd> / <kbd>W</kbd> / <kbd>רווח</kbd> קפיצה <span class="sep">·</span> <kbd>↓</kbd> / <kbd>S</kbd> התכופפות (באוויר: נחיתה מהירה)</div>
+      <div class="row"><kbd>←</kbd><kbd>→</kbd> החלפת מסלול</div>
+      <div class="row"><kbd>↑</kbd> / <kbd>רווח</kbd> קפיצה <span class="sep">·</span> <kbd>↓</kbd> התכופפות (באוויר: נחיתה מהירה)</div>
       <div class="row">בנייד: החליקו שמאלה, ימינה, למעלה או למטה</div>
       <div class="legend">סוכרייה 10 · סוכרייה עטופה 20 · שוקולד 50 · קאפקייק 100<br>דג-מגנט · כדור צמר-מגן · נפית-טורבו</div>
     </div>
@@ -338,7 +338,7 @@ const STYLE = {
     outlineSide: 9,            // outline multipliers (they are far away, so thicker in world units)
     outlineFar: 16,
   },
-  comic: { font: "'Bangers', Impact, 'Arial Black', sans-serif", ink: '#1d1233' },
+  comic: { font: "'Rubik', 'Arial Hebrew', Arial, sans-serif", weight: 900, ink: '#1d1233' },   // Hebrew comic lettering
   palette: {
     heroine: {
       fur: '#ffffff', nose: '#ff8fb3', innerEar: '#ffb0c8', blush: '#ff9ec4', mouth: '#6b2e48',
@@ -815,8 +815,8 @@ TEX.sock = stripesTex('#ffe14d', '#ff7ab6', 6, { angle: Math.PI / 2, ratio: 0.5 
 TEX.chocoLabel = canvasTex(256, 256, (g, w) => {
   g.fillStyle = PAL.candy.chocoWrap; g.fillRect(0, 0, w, w);
   g.fillStyle = '#ffffff'; g.fillRect(0, 96, w, 64);
-  g.fillStyle = PAL.candy.chocoWrap; g.font = `64px ${STYLE.comic.font}`; g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.fillText('CHOCO', w / 2, 130);
+  g.fillStyle = PAL.candy.chocoWrap; g.font = `${STYLE.comic.weight} 62px ${STYLE.comic.font}`; g.direction = 'rtl'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText('שוקו', w / 2, 130);
   g.fillStyle = PAL.candy.foil; g.fillRect(0, 84, w, 10); g.fillRect(0, 162, w, 10);
 });
 TEX.boxLabel = canvasTex(256, 256, (g, w) => {
@@ -903,7 +903,7 @@ TEX.sparkle = canvasTex(128, 128, (g, w) => {
 
 // --- comic pop-up text textures (jagged bubble / starburst, thick ink, Bangers type)
 function comicTex(text, o = {}) {
-  const { w = 512, h = 320, shape = 'burst', fill = '#ffe14d', textFill = '#ff3b5c', spikes = 14, seed = 3, font = 130, tilt = -0.06, tail = false } = o;
+  const { w = 512, h = 320, shape = 'burst', fill = '#ffe14d', textFill = '#ff3b5c', spikes = 14, seed = 3, font = 130, tilt = -0.06, tail = false, dir = 'rtl' } = o;
   return canvasTex(w, h, (g) => {
     const rnd = mulberry32(seed);
     const cx = w / 2, cy = h / 2 - (tail ? h * 0.08 : 0);
@@ -933,8 +933,10 @@ function comicTex(text, o = {}) {
     g.save(); g.translate(cx, cy + 4); g.rotate(tilt);
     let fs = font;
     const maxW = pts.length ? rx * 1.42 : w * 0.88;
-    g.font = `${fs}px ${STYLE.comic.font}`;
-    while (g.measureText(text).width > maxW && fs > 20) { fs -= 4; g.font = `${fs}px ${STYLE.comic.font}`; }
+    const setFont = () => { g.font = `${STYLE.comic.weight} ${fs}px ${STYLE.comic.font}`; };
+    setFont();
+    while (g.measureText(text).width > maxW && fs > 20) { fs -= 4; setFont(); }
+    g.direction = dir;
     g.textAlign = 'center'; g.textBaseline = 'middle';
     g.fillStyle = ink; g.fillText(text, 6, 7);
     g.lineWidth = Math.max(8, fs * 0.15); g.strokeStyle = ink; g.strokeText(text, 0, 0);
@@ -942,11 +944,11 @@ function comicTex(text, o = {}) {
     g.restore();
   });
 }
-TEX.hiss = comicTex('HISS!', { shape: 'bubble', fill: '#ffffff', textFill: '#9b4dff', spikes: 18, seed: 21, tail: true, tilt: -0.08 });
-TEX.bonk = comicTex('BONK!', { shape: 'burst', fill: '#ffb02e', textFill: '#ffffff', spikes: 12, seed: 4, tilt: 0.07 });
-TEX.pop = comicTex('POP!', { shape: 'burst', fill: '#ffe14d', textFill: '#ff3b7f', spikes: 11, seed: 8, tilt: -0.1 });
+TEX.hiss = comicTex('פססס!', { shape: 'bubble', fill: '#ffffff', textFill: '#9b4dff', spikes: 18, seed: 21, tail: true, tilt: -0.08 });
+TEX.bonk = comicTex('בום!', { shape: 'burst', fill: '#ffb02e', textFill: '#ffffff', spikes: 12, seed: 4, tilt: 0.07 });
+TEX.yum = ['יאמי!', 'טעים!', 'מתוק!'].map((word, i) => comicTex(word, { shape: 'burst', fill: '#ffe14d', textFill: '#ff3b7f', spikes: 11, seed: 8 + i * 5, tilt: -0.1 + i * 0.08 }));
 TEX.points = {};
-for (const v of [10, 20, 50, 100]) TEX.points[v] = comicTex('+' + v, { shape: 'none', w: 384, h: 192, font: 150, textFill: v >= 100 ? '#ff7ab6' : '#ffe14d', tilt: -0.05 });
+for (const v of [10, 20, 50, 100]) TEX.points[v] = comicTex('+' + v, { shape: 'none', w: 384, h: 192, font: 150, dir: 'ltr', textFill: v >= 100 ? '#ff7ab6' : '#ffe14d', tilt: -0.05 });
 
 /* =====================================================================
    5. CHARACTER BUILDERS
@@ -1837,7 +1839,7 @@ const GAME = {
   speedStart: 13, speedRise: 17, speedRamp: 1500, speedLinear: 0.0025, speedMax: 42,
   difficultyRamp: 2200,         // difficulty = 1 - e^(-dist/ramp): 0.37 @ 1 km, 0.6 @ 2 km, 0.84 @ 4 km
   rowTimeGap: [1.35, 0.62],     // seconds of reaction time between obstacle rows, easy -> hard
-  milestone: 500,               // "FASTER!" every this many meters while speed is still rising
+  milestone: 500,               // "מהר יותר!" burst every this many meters while speed is still rising
   lives: 3,
   invincibleTime: 1.7, hitStunTime: 1.1, slowTime: 1.4, slowFactor: 0.5,
   chunkLen: 24, chunkCount: 9, chunkVariants: 6,
@@ -2111,12 +2113,12 @@ magnetFx.visible = false;
 /* =====================================================================
    12. EFFECTS: comic pop-ups, particles, camera shake
    ===================================================================== */
-TEX.magnetTxt = comicTex('MAGNET!', { shape: 'bubble', fill: '#d4f1ff', textFill: '#ff3b5c', spikes: 16, seed: 31 });
-TEX.shieldTxt = comicTex('SHIELD!', { shape: 'burst', fill: '#ffc2dd', textFill: '#9b4dff', spikes: 13, seed: 12 });
-TEX.zoomTxt = comicTex('ZOOM!', { shape: 'burst', fill: '#b8f27a', textFill: '#ff3b7f', spikes: 12, seed: 17 });
-TEX.blockTxt = comicTex('BLOCK!', { shape: 'burst', fill: '#e0b3ff', textFill: '#ffffff', spikes: 12, seed: 27 });
-TEX.powTxt = comicTex('POW!', { shape: 'burst', fill: '#ffe14d', textFill: '#ff4d2e', spikes: 11, seed: 5, tilt: 0.1 });
-TEX.fasterTxt = comicTex('FASTER!', { shape: 'burst', fill: '#ff4d6d', textFill: '#ffe14d', spikes: 15, seed: 41, tilt: -0.08 });
+TEX.magnetTxt = comicTex('מגנט!', { shape: 'bubble', fill: '#d4f1ff', textFill: '#ff3b5c', spikes: 16, seed: 31 });
+TEX.shieldTxt = comicTex('מגן!', { shape: 'burst', fill: '#ffc2dd', textFill: '#9b4dff', spikes: 13, seed: 12 });
+TEX.zoomTxt = comicTex('טורבו!', { shape: 'burst', fill: '#b8f27a', textFill: '#ff3b7f', spikes: 12, seed: 17 });
+TEX.blockTxt = comicTex('פיו!', { shape: 'burst', fill: '#e0b3ff', textFill: '#ffffff', spikes: 12, seed: 27 });
+TEX.powTxt = comicTex('באם!', { shape: 'burst', fill: '#ffe14d', textFill: '#ff4d2e', spikes: 11, seed: 5, tilt: 0.1 });
+TEX.fasterTxt = comicTex('מהר יותר!', { w: 720, h: 330, font: 150, shape: 'burst', fill: '#ff4d6d', textFill: '#ffe14d', spikes: 15, seed: 41, tilt: -0.08 });
 function speedUpCue() {   // every milestone: comic burst, whoosh + sting, speed-line flash
   popText(TEX.fasterTxt, headPos().clone().add(tmpV.set(0, 1.4, -1.8)), { height: 1.15, life: 1.3, rise: 0.4, wobble: 0.15 });
   AUDIO.play('levelUp');
@@ -2686,7 +2688,7 @@ function collectCandy(c) {
   const pts = GAME.candy[c.type];
   candyCount++; candyPoints += pts;
   const p = U.holder.getWorldPosition(new THREE.Vector3());
-  if (clockT - lastPopT > 0.3 || pts >= 50) { popText(TEX.pop, p.clone().add(tmpV.set(0, 0.5, 0)), { height: pts >= 50 ? 0.9 : 0.65, life: 0.7, rise: 0.4 }); lastPopT = clockT; }
+  if (clockT - lastPopT > 0.3 || pts >= 50) { popText(rpick(TEX.yum), p.clone().add(tmpV.set(0, 0.5, 0)), { height: pts >= 50 ? 0.9 : 0.65, life: 0.7, rise: 0.4 }); lastPopT = clockT; }
   popText(TEX.points[pts], p.clone().add(tmpV.set(0.35, 0.1, 0)), { height: pts >= 50 ? 0.6 : 0.42, life: 0.9, rise: 0.9, delay: 0.05, wobble: 0.04 });
   burst(p, CANDY_COLORS[c.type], pts >= 50 ? 18 : 8);
   AUDIO.play('pop', { pts, pan: c.x / 3.5 });
@@ -3778,7 +3780,7 @@ renderHearts();
 tick();
 // console handle for tuning / debugging, e.g. candyCat.GAME.speedMax = 30
 window.candyCat = {
-  GAME, STYLE, P, obstacles, candies, powers, act, renderer, scene, AUDIO,
+  GAME, STYLE, P, obstacles, candies, powers, act, renderer, scene, AUDIO, TEX,
   get state() { return state; }, get dist() { return dist; }, get score() { return score; }, get speed() { return curSpeed; },
   set manual(v) { DEBUG.manual = v; },
   step(dt = 1 / 60, draw = true) { clockT += dt; update(dt); if (draw) renderer.render(scene, camera); },   // manual frame stepping (tests, background tabs)
