@@ -34,9 +34,10 @@
   /* ---------- Loading ---------- */
   #loading {
     position: fixed; inset: 0; display: grid; place-items: center; background: #9fd3ff; z-index: 50;
-    font-family: 'Bangers', Impact, sans-serif; font-size: 42px; letter-spacing: 2px; color: #fff;
+    font-family: 'Rubik', sans-serif; font-weight: 900; font-size: clamp(30px, 7vw, 46px); color: #fff;
     text-shadow: var(--outline-text), 4px 5px 0 var(--ink); transition: opacity .4s;
   }
+  #loading span { display: inline-block; animation: wobble 1.2s ease-in-out infinite; }
   #loading.gone { opacity: 0; pointer-events: none; }
 
   /* ---------- HUD ---------- */
@@ -207,7 +208,7 @@
 <body>
 <canvas id="scene"></canvas>
 <canvas id="speedlines"></canvas>
-<div id="loading">Loading toons…</div>
+<div id="loading" dir="rtl"><span>מכינים ממתקים…</span></div>
 
 <!-- ===================== HUD ===================== -->
 <div id="hud">
@@ -1831,8 +1832,12 @@ const GAME = {
   slideTime: 0.75,
   jumpBuffer: 0.16,             // jump pressed this long before landing still counts
   slideBuffer: 0.35,            // Down in the air -> slide on landing
-  speedStart: 12.5, speedMax: 27, speedRamp: 2800,   // speed eases toward the cap with distance
-  difficultyDist: 3200,         // distance at which patterns reach full difficulty
+  // speed keeps climbing: a quick early ramp plus a steady linear push, capped for playability
+  // (~13 m/s at the start, ~24 at 1 km, ~30 at 2 km, ~35 at 3 km, ~40 at 4 km, 42 cap)
+  speedStart: 13, speedRise: 17, speedRamp: 1500, speedLinear: 0.0025, speedMax: 42,
+  difficultyRamp: 2200,         // difficulty = 1 - e^(-dist/ramp): 0.37 @ 1 km, 0.6 @ 2 km, 0.84 @ 4 km
+  rowTimeGap: [1.35, 0.62],     // seconds of reaction time between obstacle rows, easy -> hard
+  milestone: 500,               // "FASTER!" every this many meters while speed is still rising
   lives: 3,
   invincibleTime: 1.7, hitStunTime: 1.1, slowTime: 1.4, slowFactor: 0.5,
   chunkLen: 24, chunkCount: 9, chunkVariants: 6,
@@ -2111,6 +2116,13 @@ TEX.shieldTxt = comicTex('SHIELD!', { shape: 'burst', fill: '#ffc2dd', textFill:
 TEX.zoomTxt = comicTex('ZOOM!', { shape: 'burst', fill: '#b8f27a', textFill: '#ff3b7f', spikes: 12, seed: 17 });
 TEX.blockTxt = comicTex('BLOCK!', { shape: 'burst', fill: '#e0b3ff', textFill: '#ffffff', spikes: 12, seed: 27 });
 TEX.powTxt = comicTex('POW!', { shape: 'burst', fill: '#ffe14d', textFill: '#ff4d2e', spikes: 11, seed: 5, tilt: 0.1 });
+TEX.fasterTxt = comicTex('FASTER!', { shape: 'burst', fill: '#ff4d6d', textFill: '#ffe14d', spikes: 15, seed: 41, tilt: -0.08 });
+function speedUpCue() {   // every milestone: comic burst, whoosh + sting, speed-line flash
+  popText(TEX.fasterTxt, headPos().clone().add(tmpV.set(0, 1.4, -1.8)), { height: 1.15, life: 1.3, rise: 0.4, wobble: 0.15 });
+  AUDIO.play('levelUp');
+  slFlash = 1;
+  shake(0.08);
+}
 
 const FX = { texts: [], textPool: [], parts: [], partPool: [] };
 function popText(tex, pos, { height = 0.8, life = 1.0, rise = 0.8, wobble = 0.1, delay = 0 } = {}) {
@@ -2207,10 +2219,11 @@ function spawnCat(kind, behavior, lane, t, opts = {}) {
   } else if (behavior === 'sit') {
     R.root.rotation.y = (Math.random() - 0.5) * 0.4;
   } else if (behavior === 'pace') {
-    Object.assign(e, { xa: laneX(opts.pair[0]), xb: laneX(opts.pair[1]), pacePh: Math.random() * Math.PI * 2, w: 0.85, d: 0.45 });
+    Object.assign(e, { xa: laneX(opts.pair[0]), xb: laneX(opts.pair[1]), pacePh: Math.random() * Math.PI * 2, paceRate: 1.9 + 1.5 * difficultyAt(t), w: 0.85, d: 0.45 });
     e.x = lerp(e.xa, e.xb, 0.5 - 0.5 * Math.cos(e.pacePh));
   } else if (behavior === 'pounce') {
-    Object.assign(e, { state: 'wait', timer: 0, from: x, to: x, w: 0.6, d: 0.75 });
+    const dd = difficultyAt(t);
+    Object.assign(e, { state: 'wait', timer: 0, from: x, to: x, w: 0.6, d: 0.75, warnTime: lerp(0.6, 0.42, dd), leapTime: lerp(0.45, 0.36, dd) });
   }
   e.yMax = e.h;
   obstacles.push(e);
@@ -2238,7 +2251,7 @@ function candyLine(lane, t0, n, gap = 2.2, type = null, y = 0.75) {
   for (let i = 0; i < n; i++) spawnCandy(i === n - 1 && !type && chance(0.15) ? 'chocolate' : ty, laneX(lane), y, t0 + i * gap);
 }
 function candyArc(lane, tc, type, cupcakeTop = false) {   // follows the jump parabola over an obstacle
-  const L = Math.max(7, speedCurve(dist) * (2 * GAME.jumpVel / GAME.gravity));
+  const L = Math.max(7, speedCurve(tc) * (2 * GAME.jumpVel / GAME.gravity));
   for (let i = 0; i < 5; i++) {
     const u = i / 4;
     spawnCandy(cupcakeTop && i === 2 ? 'cupcake' : type, laneX(lane), 0.7 + 4 * 1.25 * u * (1 - u), tc - L / 2 + u * L);
@@ -2257,7 +2270,7 @@ function avoidLamp(t) { const m = ((t - 12) % GAME.chunkLen + GAME.chunkLen) % G
 
 // --- patterns: every one leaves at least one lane passable (free, jumpable or duckable)
 const PATTERNS = [
-  { name: 'low', w: () => 1.0, f(t) {
+  { name: 'low', w: (d) => 1.0 - d * 0.6, f(t) {
     const l = randLane();
     spawnObstacle(rpick(LOW_TYPES), l, t);
     candyArc(l, t, arcType());
@@ -2312,21 +2325,21 @@ const PATTERNS = [
     candyLine(l, t - 10, 3, 2.2, 'wrapped');
     return 4;
   } },
-  { name: 'candies', w: () => 0.45, f(t) {
+  { name: 'candies', w: (d) => 0.45 - d * 0.25, f(t) {
     if (chance(0.5)) candyZigzag(t);
     else { const l = randLane(); candyLine(l, t, 8, 2.2); }
     return 18;
   } },
-  { name: 'combo', w: (d) => d < 0.3 ? 0 : 0.5 + d * 0.5, f(t) {
+  { name: 'combo', w: (d) => d < 0.3 ? 0 : 0.5 + d * 0.7, f(t) {
     const lanes = shuffle([0, 1, 2]);
     spawnObstacle(chance(0.5) ? 'car' : 'fence', lanes[0], t);
     spawnObstacle(chance(0.5) ? 'car' : 'fence', lanes[1], t);
-    const t2 = t + speedCurve(dist) * 0.8 + 4;
+    const t2 = t + speedCurve(t) * 0.8 + 4;
     spawnObstacle(rpick(LOW_TYPES), lanes[2], t2);
     candyArc(lanes[2], t2, arcType());
     return t2 - t + 2;
   } },
-  { name: 'mixed', w: (d) => d < 0.5 ? 0 : 0.5, f(t) {
+  { name: 'mixed', w: (d) => d < 0.5 ? 0 : 0.4 + d * 0.5, f(t) {
     const lanes = shuffle([0, 1, 2]);
     spawnObstacle(rpick(LOW_TYPES), lanes[0], t);
     spawnObstacle('awning', lanes[1], t);
@@ -2334,9 +2347,42 @@ const PATTERNS = [
     candyLine(lanes[1], t - 3, 4, 2, null, 0.45);
     return 3;
   } },
+  // ---- late game: chained rows, each still leaves a way through
+  { name: 'gauntlet', w: (d) => d < 0.45 ? 0 : 0.4 + d * 0.8, f(t) {   // dodge -> jump -> duck
+    const step = Math.max(10, speedCurve(t) * 0.7);
+    const lanes = shuffle([0, 1, 2]), free = lanes[2];
+    spawnObstacle(blockType(), lanes[0], t);
+    spawnObstacle(blockType(), lanes[1], t);
+    const t2 = t + step;
+    spawnObstacle(rpick(LOW_TYPES), free, t2);                  // jump it, or use the other open lane
+    spawnObstacle(blockType(), rpick(otherLanes(free)), t2);
+    candyArc(free, t2, arcType(), chance(0.2));
+    const t3 = avoidLamp(t2 + step);
+    spawnObstacle('laundry', 1, t3, 0);
+    candyLine(randLane(), t3 - 3, 3, 2, null, 0.45);
+    return t3 - t + 2;
+  } },
+  { name: 'catSquad', w: (d) => d < 0.4 ? 0 : 0.35 + d * 0.5, f(t) {   // sitting cat + junk, then a pacer
+    const l = randLane();
+    spawnCat(rpick(CAT_KINDS), chance(0.4) ? 'hiss' : 'sit', l, t);
+    spawnObstacle(rpick(LOW_TYPES), rpick(otherLanes(l)), t);
+    const t2 = t + Math.max(10, speedCurve(t) * 0.75);
+    const pair = chance(0.5) ? [0, 1] : [1, 2];
+    spawnCat(rpick(CAT_KINDS), 'pace', pair[0], t2, { pair });
+    candyLine(pair[0] === 0 ? 2 : 0, t2 - 4, 4);
+    return t2 - t + 3;
+  } },
+  { name: 'doublePounce', w: (d) => d < 0.65 ? 0 : 0.3 + d * 0.4, f(t) {   // both outer lanes leap
+    spawnCat(rpick(CAT_KINDS), 'pounce', 0, t);
+    spawnCat(rpick(CAT_KINDS), 'pounce', 2, t + 1.5);
+    candyLine(1, t - 10, 3, 2.2, 'wrapped');
+    return 5;
+  } },
 ];
+const blockType = () => chance(0.5) ? 'car' : 'fence';
 const GEN = { t: 0, last: -1, nextPower: 0 };
-const difficulty = () => clamp01(dist / GAME.difficultyDist);
+const difficultyAt = (d) => 1 - Math.exp(-Math.max(0, d) / GAME.difficultyRamp);
+const difficulty = () => difficultyAt(dist);
 function resetGen() { GEN.t = GAME.firstSpawn; GEN.last = -1; GEN.nextPower = 250 + Math.random() * 200; }
 function pickPattern(d) {
   const ws = PATTERNS.map((p, i) => i === GEN.last ? 0 : p.w(d));
@@ -2346,11 +2392,12 @@ function pickPattern(d) {
 }
 function generate() {
   while (GEN.t < dist + GAME.spawnAhead) {
-    const d = difficulty();
+    const d = difficultyAt(GEN.t);                                // difficulty where the player will meet it
     const i = GEN.t < GAME.firstSpawn + 1 ? 0 : pickPattern(d);   // gentle opener
     GEN.last = i;
     const len = PATTERNS[i].f(GEN.t, d);
-    const gap = (lerp(15, 9, d) + speedCurve(dist) * 0.42) * (0.9 + Math.random() * 0.35);
+    const timeGap = lerp(GAME.rowTimeGap[0], GAME.rowTimeGap[1], d) * (0.9 + Math.random() * 0.3);
+    const gap = Math.max(9, speedCurve(GEN.t) * timeGap + 3);
     if (GEN.t + len > GEN.nextPower) {
       spawnPower(rpick(['magnet', 'shield', 'boost']), randLane(), GEN.t + len + gap * 0.5);
       GEN.nextPower = GEN.t + 420 + Math.random() * 380;
@@ -2371,7 +2418,7 @@ function clearEntities() {
 let state = 'start';          // start | intro | playing | paused | dying | over
 let dist = 0, distPrev = 0, curSpeed = 0;
 let candyCount = 0, candyPoints = 0, score = 0;
-let introT = 0, introDur = 1.1, introFromStart = true, dyingT = 0, prevState = 'playing';
+let introT = 0, introDur = 1.1, introFromStart = true, dyingT = 0, prevState = 'playing', lastMilestone = 0;
 let clockT = 0, lastPopT = -1;
 const P = {};
 function resetPlayer() {
@@ -2379,7 +2426,8 @@ function resetPlayer() {
     leanT: 9, leanDir: 0, landT: 0, hitT: 0, inv: 0, lives: GAME.lives, shield: false, magnetT: 0, boostT: 0, slowT: 0, trailT: 0 });
 }
 resetPlayer();
-const speedCurve = (d) => GAME.speedStart + (GAME.speedMax - GAME.speedStart) * (1 - Math.exp(-d / GAME.speedRamp));
+const speedCurve = (d) => Math.min(GAME.speedMax, GAME.speedStart + GAME.speedRise * (1 - Math.exp(-d / GAME.speedRamp)) + GAME.speedLinear * d);
+const speedFrac = (v) => clamp01((v - GAME.speedStart) / (GAME.speedMax - GAME.speedStart));
 const playerH = () => P.slideT > 0 ? GAME.player.slideH : GAME.player.standH;
 
 const inputQueue = [];
@@ -2518,7 +2566,7 @@ function updateCat(e, dt, z) {
       R.tail.forEach((s, i) => { s.rotation.z = Math.sin(tt * 30 + i) * 0.03; });
       break;
     case 'pace': {
-      e.pacePh += dt * 1.9;
+      e.pacePh += dt * e.paceRate;
       e.x = lerp(e.xa, e.xb, 0.5 - 0.5 * Math.cos(e.pacePh));
       const vel = Math.sin(e.pacePh) * Math.sign(e.xb - e.xa);
       R.root.rotation.y = lerp(R.root.rotation.y, (vel >= 0 ? 1 : -1) * Math.PI / 2, 1 - Math.exp(-dt * 7));
@@ -2550,10 +2598,10 @@ function updateCat(e, dt, z) {
         R.body.rotation.y = Math.sin(tt * 28) * 0.14 * k;
         R.legs.forEach((l, i) => { l.rotation.x = (i < 2 ? -0.35 : 0.35) * k; });
         R.head.rotation.y = lerp(R.head.rotation.y, Math.sign(e.to - e.from) * 0.7, 1 - Math.exp(-dt * 8));
-        if (e.timer > 0.6) { e.state = 'leap'; e.timer = 0; }
+        if (e.timer > e.warnTime) { e.state = 'leap'; e.timer = 0; }
       } else if (e.state === 'leap') {
         e.timer += dt;
-        const u = Math.min(e.timer / 0.45, 1);
+        const u = Math.min(e.timer / e.leapTime, 1);
         e.x = lerp(e.from, e.to, easeInOut(u));
         e.y = 4 * 0.9 * u * (1 - u);
         R.root.rotation.y = Math.sign(e.to - e.from) * 0.7 * Math.sin(u * Math.PI);
@@ -2573,7 +2621,7 @@ function updateCat(e, dt, z) {
   }
   R.root.position.set(e.x, e.y, z);
   e.yMin = e.y; e.yMax = e.y + e.h;
-  if (!e.hissed && z > -GAME.hissDistance && z < 1) triggerHiss(e);
+  if (!e.hissed && z > -Math.max(GAME.hissDistance, curSpeed * 0.9) && z < 1) triggerHiss(e);
   if (R.hiss.visible) {
     e.hissT += dt;
     const s = easeOutBack(Math.min(e.hissT / 0.2, 1)) * (1 + Math.sin(e.hissT * 14) * 0.05);
@@ -2846,8 +2894,7 @@ function updateCamera(dt) {
     camera.position.x += (Math.random() - 0.5) * a; camera.position.y += (Math.random() - 0.5) * a;
   }
   camera.lookAt(camLook);
-  const speedFrac = clamp01((curSpeed - GAME.speedStart) / (GAME.speedMax - GAME.speedStart));
-  const fov = baseFov + speedFrac * 4 + (P.boostT > 0 && state === 'playing' ? 9 : 0);
+  const fov = baseFov + speedFrac(curSpeed) * 10 + (P.boostT > 0 && state === 'playing' ? 9 : 0);
   if (Math.abs(fov - camera.fov) > 0.01) { camera.fov = lerp(camera.fov, fov, 1 - Math.exp(-dt * 5)); camera.updateProjectionMatrix(); }
 }
 
@@ -2901,7 +2948,7 @@ function resetRun() {
   clearEntities(); clearFx();
   resetPlayer();
   dist = 0; distPrev = 0; curSpeed = 0; score = 0; candyCount = 0; candyPoints = 0;
-  CAM.x = 0; CAM.shake = 0;
+  CAM.x = 0; CAM.shake = 0; lastMilestone = 0;
   resetGen(); resetChunks();
   lastHeartsLives = -1; renderHearts();
   hudShown.score = hudShown.candies = -1; updateHud();
@@ -2984,6 +3031,8 @@ window.addEventListener('keydown', (e) => {
 });
 // touch / mouse swipes (fire as soon as the finger has moved far enough)
 let swipe = null;
+// iOS grants audio on touchend/click rather than pointerdown, so unlock on all of them
+['touchend', 'click'].forEach(t => window.addEventListener(t, () => AUDIO.unlock(), { capture: true, passive: true }));
 window.addEventListener('pointerdown', (e) => {
   AUDIO.unlock();
   if (state === 'start') tapHeroine(e);
@@ -3016,10 +3065,10 @@ function respawnLine(l, fresh) {
   l.len = 0.12 + Math.random() * 0.22; l.w = 2 + Math.random() * 5; l.sp = 1.2 + Math.random() * 1.6;
 }
 slLines.forEach(l => respawnLine(l, true));
-let slAlpha = 0;
+let slAlpha = 0, slFlash = 0;
 function drawSpeedLines(dt) {
-  const speedFrac = clamp01((curSpeed - 16) / (GAME.speedMax - 16));
-  const target = state === 'playing' ? Math.max(speedFrac * 0.8, P.boostT > 0 ? 1 : 0) : 0;
+  slFlash = Math.max(0, slFlash - dt * 1.2);
+  const target = state === 'playing' ? Math.max(clamp01((curSpeed - 17) / 20) * 0.9, P.boostT > 0 ? 1 : 0, slFlash) : 0;
   slAlpha = lerp(slAlpha, target, 1 - Math.exp(-dt * 5));
   const W = slCanvas.width, H = slCanvas.height;
   slg.clearRect(0, 0, W, H);
@@ -3091,6 +3140,7 @@ const AUDIO = (() => {
   let muted = store.get(KEY_MUTED, '0') === '1';
   document.body.classList.toggle('muted', muted);
   const MASTER_VOL = 0.9;
+  const VOICE_VOL = 0.65;                         // recorded voice clips, relative to the normalized clip
   const BPM = 140, STEP = 60 / BPM / 4;          // 16th-note grid
   const midi = (n) => 440 * Math.pow(2, (n - 69) / 12);
   const lastPlayed = {};
@@ -3131,6 +3181,10 @@ const AUDIO = (() => {
   function init() {
     if (ctx || !AC) return;
     ctx = new AC({ latencyHint: 'interactive' });
+    const own = ctx;
+    ctx.addEventListener('statechange', () => {
+      if (own === ctx && wantRunning && ctx.state !== 'running' && ctx.state !== 'closed' && !document.hidden) ctx.resume().catch(() => {});
+    });
     const comp = ctx.createDynamicsCompressor();
     comp.threshold.value = -16; comp.knee.value = 12; comp.ratio.value = 3.2; comp.attack.value = 0.004; comp.release.value = 0.2;
     comp.connect(ctx.destination);
@@ -3356,6 +3410,12 @@ const AUDIO = (() => {
           a: 0.04, d: len * 0.5, s: 0.75, hold: len * 0.4, r: 0.14, vol: 0.12, when: w + 0.25,
           lp: 700, lp1: 1600, q: 5, vib: i === 3 ? 0.8 : 0.15, vibRate: 6, vibDelay: 0.2, rev: 0.25 }));
     },
+    levelUp() {                                      // milestone: rising whoosh + brass stab + crash
+      noise({ dur: 0.55, a: 0.25, vol: 0.16, f: 400, f1: 5000, q: 1.2 });
+      [67, 71, 74].forEach((n, i) => tone({ type: 'sawtooth', unison: 3, spread: 12, f: midi(n + i * 5), a: 0.01, d: 0.16, s: 0.4, hold: i === 2 ? 0.25 : 0, r: 0.12, vol: 0.06, when: 0.3 + i * 0.09, lp: 3800, rev: 0.25, dly: 0.15 }));
+      noise({ dur: 1.1, vol: 0.08, type: 'highpass', f: 5200, when: 0.48, rev: 0.3 });
+      shimmer(0.5, 0.48);
+    },
     record() {                                       // new high score fanfare
       [72, 76, 79, 84].forEach((n, i) => tone({ type: 'square', f: midi(n), d: 0.1, vol: 0.06, when: i * 0.1, lp: 4000, rev: 0.25 }));
       [84, 88, 91].forEach(n => tone({ type: 'sawtooth', unison: 3, spread: 10, f: midi(n), a: 0.02, d: 0.3, s: 0.6, hold: 0.5, r: 0.5, vol: 0.035, when: 0.42, lp: 5000, rev: 0.4, dly: 0.2 }));
@@ -3428,7 +3488,7 @@ const AUDIO = (() => {
   };
   const SONG = ['A', 'A2', 'B', 'A2'];
   const BASS = { 0: 0, 3: 0, 6: 12, 8: 0, 11: 7, 14: 12 };
-  const music = { on: false, mode: 'game', step: 0, next: 0, timer: null, intensity: 0, tempoMul: 1, bright: false };
+  const music = { on: false, mode: 'game', step: 0, next: 0, timer: null, intensity: 0, tempoMul: 1, speedMul: 1, bright: false };
   const M = (o) => ({ dest: musicBus, ...o });
 
   function kick(at, v = 1) { tone(M({ f: 155, f1: 42, glide: 0.1, at, d: 0.32, vol: 0.5 * v })); noise(M({ at, dur: 0.012, vol: 0.12 * v, type: 'highpass', f: 3000 })); }
@@ -3489,11 +3549,12 @@ const AUDIO = (() => {
     if (!ctx) return;
     if (music.on && music.mode === mode) return;
     music.mode = mode; music.step = 0; music.next = ctx.currentTime + 0.08;
+    if (mode === 'menu') music.speedMul = 1;
     if (music.on) return;
     music.on = true;
     music.timer = setInterval(() => {
       if (ctx.state !== 'running') return;
-      const stepDur = STEP / music.tempoMul;
+      const stepDur = STEP / (music.tempoMul * music.speedMul);
       if (music.next < ctx.currentTime - 0.2) music.next = ctx.currentTime + 0.02;   // recovered from a stall
       while (music.next < ctx.currentTime + 0.12) { scheduleStep(music.step++, music.next, stepDur); music.next += stepDur; }
     }, 25);
@@ -3557,7 +3618,7 @@ const AUDIO = (() => {
     if (!ctx || !b) return false;
     if (voiceSrc) { try { voiceSrc.stop(); } catch { /* already stopped */ } }
     const t = ctx.currentTime;
-    const src = ctx.createBufferSource(), hp = ctx.createBiquadFilter(), g = gainNode(1);
+    const src = ctx.createBufferSource(), hp = ctx.createBiquadFilter(), g = gainNode(VOICE_VOL);
     src.buffer = b;
     hp.type = 'highpass'; hp.frequency.value = 90;
     src.connect(hp).connect(g).connect(voiceTap);
@@ -3576,24 +3637,40 @@ const AUDIO = (() => {
     voiceTap.getFloatTimeDomainData(voiceData);
     let sum = 0;
     for (let i = 0; i < voiceData.length; i++) sum += voiceData[i] * voiceData[i];
-    return Math.min(1, Math.sqrt(sum / voiceData.length) * 5);
+    return Math.min(1, Math.sqrt(sum / voiceData.length) * 7);
   }
   // first user gesture: start the context, the menu music and the intro voice
+  // Called from every tap/key (pointerdown, touchend, click, keydown): iOS only lets audio start
+  // on some of these, so trying on all of them makes the very first tap count.
+  let wantRunning = false;
   function unlock() {
+    keepPlaybackSession();                          // switch the iOS audio session first
     init();
     if (!ctx) return;
-    keepPlaybackSession();
-    if (ctx.state === 'suspended') ctx.resume();
+    wantRunning = true;
+    if (ctx.state !== 'running') ctx.resume().catch(() => { /* retried on the next gesture */ });
     if (state === 'start') music.start('menu');
     if (!introPlayed) {
       introPlayed = true;
-      decodeVoices().then(() => { if (state === 'start') playVoice('intro'); });
+      decodeVoices().then(whenRunning).then(() => { if (state === 'start') playVoice('intro'); });
     }
+  }
+  function whenRunning() {
+    return new Promise(res => {
+      if (ctx.state === 'running') return res();
+      const h = () => { if (ctx.state === 'running') { ctx.removeEventListener('statechange', h); res(); } };
+      ctx.addEventListener('statechange', h);
+    });
   }
   // try to start sound without a tap (allowed on some browsers / returning visitors)
   function tryAutoplay() {
+    if (!AC) return false;
     init();
-    return !!ctx && ctx.state === 'running';
+    if (ctx.state === 'running') return true;
+    // blocked: drop this context; one created inside the first tap is far more reliable on iOS
+    ctx.close().catch(() => {});
+    ctx = null;
+    return false;
   }
 
   return {
@@ -3613,8 +3690,9 @@ const AUDIO = (() => {
     },
     get voicePlaying() { return !!voiceSrc; },
     setIntensity(v) { music.intensity = v; },
-    resume() { if (ctx && ctx.state === 'suspended') ctx.resume(); keepPlaybackSession(); },
-    suspend() { if (ctx && ctx.state === 'running') ctx.suspend(); if (silentEl) silentEl.pause(); },
+    setSpeed(frac) { music.speedMul = 1 + 0.22 * frac; },   // up to +22% tempo at top speed
+    resume() { wantRunning = true; if (ctx && ctx.state !== 'running') ctx.resume().catch(() => {}); keepPlaybackSession(); },
+    suspend() { wantRunning = false; if (ctx && ctx.state === 'running') ctx.suspend(); if (silentEl) silentEl.pause(); },
     toggleMute() {
       muted = !muted;
       store.set(KEY_MUTED, muted ? '1' : '0');
@@ -3649,7 +3727,15 @@ function update(dt) {
   }
   dist += curSpeed * dt;
 
-  if (state === 'intro' || state === 'playing') { generate(); AUDIO.setIntensity(difficulty()); }
+  if (state === 'intro' || state === 'playing') {
+    generate();
+    AUDIO.setIntensity(difficulty());
+    AUDIO.setSpeed(speedFrac(speedCurve(dist)));      // the music speeds up with the run
+  }
+  if (state === 'playing' && Math.floor(dist / GAME.milestone) > lastMilestone) {
+    lastMilestone = Math.floor(dist / GAME.milestone);
+    if (speedCurve(dist) < GAME.speedMax - 0.5) speedUpCue();
+  }
   if (state !== 'start' && state !== 'over') updatePlayer(dt);
   updateChunks();
   updateParallax();
